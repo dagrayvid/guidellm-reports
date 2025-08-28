@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ html_title | default("Benchmark Analysis Report") }}</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            background-color: white;
+            color: black;
+            line-height: 1.4;
+        }
+        
+        .header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .subtitle {
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        
+        .tab-container {
+            border: 1px solid black;
+        }
+        
+        .tab-header {
+            display: flex;
+            border-bottom: 1px solid black;
+            flex-wrap: wrap;
+        }
+        
+        .tab-button {
+            background-color: white;
+            border: none;
+            border-right: 1px solid black;
+            color: black;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .tab-button:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .tab-button.active {
+            background-color: black;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 20px;
+            min-height: 500px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .subtab-container {
+            border: 1px solid #ccc;
+            margin-top: 10px;
+        }
+        
+        .subtab-header {
+            display: flex;
+            border-bottom: 1px solid #ccc;
+            flex-wrap: wrap;
+        }
+        
+        .subtab-button {
+            background-color: white;
+            border: none;
+            border-right: 1px solid #ccc;
+            color: black;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
+        
+        .subtab-button:hover {
+            background-color: #f8f8f8;
+        }
+        
+        .subtab-button.active {
+            background-color: #666;
+            color: white;
+        }
+        
+        .subtab-content {
+            display: none;
+            padding: 15px;
+        }
+        
+        .subtab-content.active {
+            display: block;
+        }
+        
+        .metric-description {
+            background-color: #f8f8f8;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .metric-description h3 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .metric-description p {
+            margin: 0;
+            font-size: 12px;
+        }
+        
+        .metadata {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f8f8f8;
+            border: 1px solid #ccc;
+            font-size: 11px;
+        }
+        
+        .metadata h4 {
+            margin: 0 0 10px 0;
+            font-size: 12px;
+        }
+        
+        .deep-dive-content {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    {% if title or subtitle %}
+    <div class="header">
+        {% if title %}
+        <div class="title">{{ title }}</div>
+        {% endif %}
+        {% if subtitle %}
+        <div class="subtitle">{{ subtitle }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <div class="tab-container">
+        <div class="tab-header">
+            <button class="tab-button active" onclick="openTab(event, 'throughput')">Throughput</button>
+            <button class="tab-button" onclick="openTab(event, 'ttft')">TTFT</button>
+            <button class="tab-button" onclick="openTab(event, 'itl')">ITL</button>
+            <button class="tab-button" onclick="openTab(event, 'request-latency')">Request Latency</button>
+            <button class="tab-button" onclick="openTab(event, 'input-length')">Input Length</button>
+            <button class="tab-button" onclick="openTab(event, 'output-length')">Output Length</button>
+            <button class="tab-button" onclick="openTab(event, 'ttft-deep-dive')">TTFT Deep Dive</button>
+            <button class="tab-button" onclick="openTab(event, 'itl-deep-dive')">ITL Deep Dive</button>
+            <button class="tab-button" onclick="openTab(event, 'scheduling')">Request Scheduling</button>
+        </div>
+        
+        <!-- Throughput Tab -->
+        <div id="throughput" class="tab-content active">
+            <div class="metric-description">
+                <h3>Throughput (Output Tokens per Second)</h3>
+                <p>Higher is better. Measures how many tokens the system can generate per second.</p>
+            </div>
+            {{ throughput_chart }}
+        </div>
+        
+        <!-- TTFT Tab with Subtabs -->
+        <div id="ttft" class="tab-content">
+            <div class="metric-description">
+                <h3>Time to First Token (TTFT)</h3>
+                <p>Lower is better. Time from request start until the first token is generated.</p>
+            </div>
+            <div class="subtab-container">
+                <div class="subtab-header">
+                    <button class="subtab-button active" onclick="openSubtab(event, 'ttft-mean', 'ttft')">Mean</button>
+                    <button class="subtab-button" onclick="openSubtab(event, 'ttft-median', 'ttft')">Median</button>
+                    <button class="subtab-button" onclick="openSubtab(event, 'ttft-p95', 'ttft')">P95</button>
+                    <button class="subtab-button" onclick="openSubtab(event, 'ttft-p99', 'ttft')">P99</button>
+                </div>
+                <div id="ttft-mean" class="subtab-content active">{{ ttft_mean_chart }}</div>
+                <div id="ttft-median" class="subtab-content">{{ ttft_median_chart }}</div>
+                <div id="ttft-p95" class="subtab-content">{{ ttft_p95_chart }}</div>
+                <div id="ttft-p99" class="subtab-content">{{ ttft_p99_chart }}</div>
+            </div>
+        </div>
+        
+        <!-- ITL Tab with Subtabs -->
+        <div id="itl" class="tab-content">
+            <div class="metric-description">
+                <h3>Inter-Token Latency (ITL)</h3>
+                <p>Lower is better. Time between consecutive tokens during generation.</p>
+            </div>
+            <div class="subtab-container">
+                <div class="subtab-header">
+                    <button class="subtab-button active" onclick="openSubtab(event, 'itl-mean', 'itl')">Mean</button>
+                    <button class="subtab-button" onclick="openSubtab(event, 'itl-median', 'itl')">Median</button>
+                    <button class="subtab-button" onclick="openSubtab(event, 'itl-p95', 'itl')">P95</button>
+                    <button class="subtab-button" onclick="openSubtab(event, 'itl-p99', 'itl')">P99</button>
+                </div>
+                <div id="itl-mean" class="subtab-content active">{{ itl_mean_chart }}</div>
+                <div id="itl-median" class="subtab-content">{{ itl_median_chart }}</div>
+                <div id="itl-p95" class="subtab-content">{{ itl_p95_chart }}</div>
+                <div id="itl-p99" class="subtab-content">{{ itl_p99_chart }}</div>
+            </div>
+        </div>
+        
+        <!-- Request Latency Tab with Subtabs -->
+        <div id="request-latency" class="tab-content">
+            <div class="metric-description">
+                <h3>Request Latency</h3>
+                <p>Lower is better. Total time from request start to completion.</p>
+            </div>
+            <div class="subtab-container">
+                <div class="subtab-header">
+                    <button class="subtab-button active" onclick="openSubtab(event, 'request-latency-mean', 'request-latency')">Mean</button>
+                    <button class="subtab-button" onclick="openSubtab(event, 'request-latency-median', 'request-latency')">Median</button>
+                    <button class="subtab-button" onclick="openSubtab(event, 'request-latency-p95', 'request-latency')">P95</button>
+                    <button class="subtab-button" onclick="openSubtab(event, 'request-latency-p99', 'request-latency')">P99</button>
+                </div>
+                <div id="request-latency-mean" class="subtab-content active">{{ request_latency_mean_chart }}</div>
+                <div id="request-latency-median" class="subtab-content">{{ request_latency_median_chart }}</div>
+                <div id="request-latency-p95" class="subtab-content">{{ request_latency_p95_chart }}</div>
+                <div id="request-latency-p99" class="subtab-content">{{ request_latency_p99_chart }}</div>
+            </div>
+        </div>
+        
+        <!-- Input Length Tab -->
+        <div id="input-length" class="tab-content">
+            <div class="metric-description">
+                <h3>Input Length Distribution</h3>
+                <p>Histogram showing distribution of input prompt token lengths across all requests. Reveals variability in input sizes.</p>
+            </div>
+            {{ input_length_chart }}
+        </div>
+        
+        <!-- Output Length Tab -->
+        <div id="output-length" class="tab-content">
+            <div class="metric-description">
+                <h3>Output Length Distribution</h3>
+                <p>Histogram showing distribution of generated response token lengths across all requests. Shows consistency of output generation.</p>
+            </div>
+            {{ output_length_chart }}
+        </div>
+        
+        <!-- TTFT Deep Dive Tab -->
+        <div id="ttft-deep-dive" class="tab-content">
+            <div class="metric-description">
+                <h3>TTFT Distribution Analysis</h3>
+                <p>Histograms showing distribution of Time to First Token across all requests for each configuration.</p>
+            </div>
+            <div class="deep-dive-content">
+                {{ ttft_deep_dive_chart }}
+            </div>
+        </div>
+        
+        <!-- ITL Deep Dive Tab -->
+        <div id="itl-deep-dive" class="tab-content">
+            <div class="metric-description">
+                <h3>ITL Distribution Analysis</h3>
+                <p>Histograms showing distribution of Inter-Token Latency across all requests for each configuration.</p>
+            </div>
+            <div class="deep-dive-content">
+                {{ itl_deep_dive_chart }}
+            </div>
+        </div>
+        
+        <!-- Request Scheduling Tab -->
+        <div id="scheduling" class="tab-content">
+            <div class="metric-description">
+                <h3>Request Scheduling Analysis</h3>
+                <p>Analysis of request timing patterns including start rates, completion rates, and TTFT timeline.</p>
+            </div>
+            {{ scheduling_chart }}
+        </div>
+    </div>
+    
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            
+            // Hide all tab content
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            
+            // Remove active class from all tab buttons
+            tablinks = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            
+            // Show the selected tab and mark button as active
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+            
+            // Trigger resize for plotly charts
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 100);
+        }
+        
+        function openSubtab(evt, subtabName, parentTab) {
+            var i, subtabcontent, subtablinks;
+            
+            // Get parent tab container
+            var parentContainer = document.getElementById(parentTab);
+            
+            // Hide all subtab content in this parent
+            subtabcontent = parentContainer.getElementsByClassName("subtab-content");
+            for (i = 0; i < subtabcontent.length; i++) {
+                subtabcontent[i].classList.remove("active");
+            }
+            
+            // Remove active class from all subtab buttons in this parent
+            subtablinks = parentContainer.getElementsByClassName("subtab-button");
+            for (i = 0; i < subtablinks.length; i++) {
+                subtablinks[i].classList.remove("active");
+            }
+            
+            // Show the selected subtab and mark button as active
+            document.getElementById(subtabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+            
+            // Trigger resize for plotly charts
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 100);
+        }
+        
+        // Ensure plots resize when tabs are opened
+        document.addEventListener('DOMContentLoaded', function() {
+            const allButtons = document.querySelectorAll('.tab-button, .subtab-button');
+            allButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    setTimeout(() => {
+                        window.dispatchEvent(new Event('resize'));
+                    }, 100);
+                });
+            });
+        });
+    </script>
+    
+    {% if metadata %}
+    <div class="metadata">
+        <h4>Generation Metadata</h4>
+        <div>{{ metadata }}</div>
+    </div>
+    {% endif %}
+</body>
+</html>
+
