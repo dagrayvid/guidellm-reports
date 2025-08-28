@@ -1,6 +1,6 @@
 # GuideLLM Reports
 
-> **Note**: This tool was created with mostly by an AI code generator (Cursor), and has not yet been thoroughly vetted by a human. Use at your own risk.
+> **Note**: This tool was created with an AI code generation tool (Cursor), and has not yet been thoroughly vetted by a human. Use at your own risk.
 
 A tool for analyzing and visualizing benchmark results from GuideLLM tests. This tool combines summary metrics analysis and per-request deep dives into a single HTML report with multiple tabs and interactive visualizations.
 
@@ -45,7 +45,7 @@ python generate-report.py config.yaml --requests-only --output deep_dive_report.
 
 ## Configuration
 
-The tool uses the same YAML configuration format as the original visualization tools:
+The tool uses YAML configuration files to specify data sources and analysis options:
 
 ```yaml
 data:
@@ -71,10 +71,21 @@ options:
 
 ### Configuration Options
 
-- `color`: Column to use for grouping/coloring in charts (e.g., 'platform', 'dataset_id')
-- `axis_mode`: Either 'concurrency' or 'rps' to determine x-axis
-- `concurrency_levels`: Optional list to filter to specific concurrency levels
-- `rps_levels`: Optional list to filter to specific RPS levels (for RPS mode)
+The configuration file consists of two main sections:
+
+#### Data Sources (`data`)
+Each data group defines a set of result files and metadata:
+
+- **`files`**: List of file paths to benchmark result JSON files. Supports wildcards (e.g., `"../results/platform-a/*.json"`) for matching multiple files automatically.
+- **`extra_metadata`**: Custom metadata fields to attach to all results from these files. This metadata can be used for grouping and comparison in charts (e.g., platform, GPU type, configuration details).
+
+#### Analysis Options (`options`)
+- **`color`**: Metadata field to use for grouping/coloring data points in charts. This allows easy visual comparison between different configurations (e.g., 'platform', 'GPU', 'dataset_id').
+- **`axis_mode`**: Either 'concurrency' or 'rps' to determine x-axis scaling in charts.
+- **`concurrency_levels`**: Optional list to filter analysis to specific concurrency levels only.
+- **`rps_levels`**: Optional list to filter analysis to specific RPS levels only (used when axis_mode is 'rps').
+
+The `extra_metadata` feature is particularly useful for comparing results across different test environments, hardware configurations, or software versions - simply add descriptive metadata to each data group and set the `color` option to that field.
 
 ## Report Structure
 

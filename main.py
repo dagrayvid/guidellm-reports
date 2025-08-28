@@ -170,6 +170,21 @@ Examples:
         
         # Generate the HTML report
         print(f"\nGenerating HTML report...")
+        
+        # Reconstruct the command line for metadata
+        cmd_parts = ['python', 'generate-report.py', args.config]
+        if args.output != 'benchmark_analysis_report.html':
+            cmd_parts.extend(['--output', args.output])
+        if args.title:
+            cmd_parts.extend(['--title', f'"{args.title}"'])
+        if args.subtitle:
+            cmd_parts.extend(['--subtitle', f'"{args.subtitle}"'])
+        if args.summary_only:
+            cmd_parts.append('--summary-only')
+        if args.requests_only:
+            cmd_parts.append('--requests-only')
+        command_line = ' '.join(cmd_parts)
+        
         html_generator.generate_html_report(
             summary_df=summary_df,
             requests_df=requests_df,
@@ -178,7 +193,8 @@ Examples:
             title=args.title,
             subtitle=args.subtitle,
             color_col=color_col,
-            axis_mode=axis_mode
+            axis_mode=axis_mode,
+            command_line=command_line
         )
         
         print(f"\nReport generation complete!")

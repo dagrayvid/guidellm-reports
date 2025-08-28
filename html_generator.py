@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from jinja2 import Environment, FileSystemLoader
 import pandas as pd
+import yaml
 from typing import Dict, Any, Optional
 
 try:
@@ -13,7 +14,8 @@ except ImportError:
 
 
 def generate_metadata_text(summary_df: pd.DataFrame, requests_df: pd.DataFrame, 
-                          config_file: Optional[str], color_col: str, axis_mode: str) -> str:
+                          config_file: Optional[str], color_col: str, axis_mode: str,
+                          command_line: Optional[str] = None) -> str:
     """Generate metadata text for the report.
     
     Args:
@@ -28,33 +30,36 @@ def generate_metadata_text(summary_df: pd.DataFrame, requests_df: pd.DataFrame,
     """
     generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    # Get input files from either dataframe
-    df_to_use = summary_df if not summary_df.empty else requests_df
-    input_files = sorted(df_to_use['filepath'].unique()) if not df_to_use.empty else []
+    metadata_lines = [f"Generated: {generation_time}"]
     
-    metadata_lines = [
-        f"Generated: {generation_time}",
-        f"Configuration: {config_file or 'N/A'}",
-        f"Input files ({len(input_files)}):"
-    ]
+    # Add command line used to generate the report
+    if command_line:
+        metadata_lines.append(f"Command: {command_line}")
     
-    for filepath in input_files:
-        metadata_lines.append(f"  - {os.path.basename(filepath)}")
+    metadata_lines.append("")
     
+    # Add basic stats
     if not summary_df.empty:
         metadata_lines.append(f"Summary data points: {len(summary_df)}")
-        metadata_lines.append(f"Groups: {', '.join(sorted(summary_df[color_col].unique()))}")
-        
-        level_field = 'concurrency' if axis_mode == 'concurrency' else 'rps'
-        if level_field in summary_df.columns:
-            levels = sorted(summary_df[level_field].dropna().unique())
-            level_label = 'Concurrency' if axis_mode == 'concurrency' else 'RPS'
-            metadata_lines.append(f"{level_label} levels: {', '.join(map(str, levels))}")
-    
     if not requests_df.empty:
         metadata_lines.append(f"Individual requests: {len(requests_df)}")
-        if summary_df.empty:  # Only add this if we didn't already from summary
-            metadata_lines.append(f"Groups: {', '.join(sorted(requests_df[color_col].unique()))}")
+    
+    metadata_lines.append("")
+    
+    # Include the actual parsed YAML config for reproducibility (without comments)
+    if config_file and os.path.exists(config_file):
+        metadata_lines.append("Configuration used:")
+        metadata_lines.append("=" * 50)
+        try:
+            with open(config_file, 'r') as f:
+                parsed_config = yaml.safe_load(f)
+            # Pretty print the parsed config without comments
+            clean_yaml = yaml.dump(parsed_config, default_flow_style=False, sort_keys=False)
+            metadata_lines.append(clean_yaml.strip())
+        except Exception as e:
+            metadata_lines.append(f"Error parsing config file: {e}")
+    else:
+        metadata_lines.append(f"Configuration file: {config_file or 'N/A'}")
     
     return '\n'.join(metadata_lines)
 
@@ -167,7 +172,8 @@ def generate_all_charts(summary_df: pd.DataFrame, requests_df: pd.DataFrame,
 def generate_html_report(summary_df: pd.DataFrame, requests_df: pd.DataFrame,
                         output_path: str, config_file: Optional[str] = None,
                         title: Optional[str] = None, subtitle: Optional[str] = None,
-                        color_col: str = 'dataset_id', axis_mode: str = 'concurrency') -> None:
+                        color_col: str = 'dataset_id', axis_mode: str = 'concurrency',
+                        command_line: Optional[str] = None) -> None:
     """Generate the HTML report.
     
     Args:
@@ -186,7 +192,7 @@ def generate_html_report(summary_df: pd.DataFrame, requests_df: pd.DataFrame,
     charts = generate_all_charts(summary_df, requests_df, color_col, axis_mode)
     
     # Generate metadata
-    metadata = generate_metadata_text(summary_df, requests_df, config_file, color_col, axis_mode)
+    metadata = generate_metadata_text(summary_df, requests_df, config_file, color_col, axis_mode, command_line)
     
     # Load template
     template_dir = os.path.dirname(os.path.abspath(__file__))
