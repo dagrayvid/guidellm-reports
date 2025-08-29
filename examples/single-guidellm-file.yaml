@@ -1,0 +1,12 @@
+data:
+  - extra_metadata:
+      platform: llm-d
+      GPU: H100
+      GPU_count: 16  
+      notes: "Development llm-d environment"
+    files:
+      - examples/single-guidellm-file/llm-d-single-file.yaml
+options:
+  axis_mode: concurrency
+  concurrency_levels: [200, 400, 600, 800]
+

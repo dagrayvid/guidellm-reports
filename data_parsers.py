@@ -3,24 +3,11 @@
 import json
 import pandas as pd
 import os
-import re
 from glob import glob
 from typing import Dict, Any, List, Optional, Callable, Tuple
 
 
-def extract_replicas_from_filename(filename: str) -> Optional[int]:
-    """Extract the number of replicas from filename pattern YYYYMMDD-HHMMSS-r{replicas}-{name}.json
-    
-    Args:
-        filename: Filename to parse
-        
-    Returns:
-        Number of replicas or None if not found
-    """
-    match = re.search(r'-r(\d+)-', filename)
-    if match:
-        return int(match.group(1))
-    return None
+
 
 
 def extract_dataset_settings(request_loader: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -61,20 +48,15 @@ def extract_dataset_settings(request_loader: Optional[Dict[str, Any]]) -> Dict[s
 
 def parse_benchmark_metrics(filepath: str, extra_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Parse a single JSON file and extract benchmark metrics.
-    
+
     Args:
         filepath: Path to the JSON file
         extra_metadata: Additional metadata to include in each row
-        
+
     Returns:
         List of dictionaries containing parsed benchmark metrics
     """
     filename = os.path.basename(filepath)
-    replicas = extract_replicas_from_filename(filename)
-    
-    if replicas is None:
-        print(f"Warning: Could not extract replicas from filename: {filename}")
-        return []
     
     try:
         with open(filepath, 'r') as f:
@@ -145,7 +127,6 @@ def parse_benchmark_metrics(filepath: str, extra_metadata: Optional[Dict[str, An
         row = {
             'filename': filename,
             'filepath': filepath,
-            'replicas': replicas,
             'concurrency': concurrency,
             'rps': rps,
             'prompt_tokens': dataset_settings.get('prompt_tokens', 0),
@@ -187,20 +168,15 @@ def parse_benchmark_metrics(filepath: str, extra_metadata: Optional[Dict[str, An
 
 def parse_individual_requests(filepath: str, extra_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Parse individual request data from a JSON file.
-    
+
     Args:
         filepath: Path to the JSON file
         extra_metadata: Additional metadata to include in each row
-        
+
     Returns:
         List of dictionaries containing individual request data
     """
     filename = os.path.basename(filepath)
-    replicas = extract_replicas_from_filename(filename)
-    
-    if replicas is None:
-        print(f"Warning: Could not extract replicas from filename: {filename}")
-        return []
     
     try:
         with open(filepath, 'r') as f:
@@ -251,14 +227,13 @@ def parse_individual_requests(filepath: str, extra_metadata: Optional[Dict[str, 
             continue
         
         label = f"c{concurrency}" if concurrency is not None else (f"rps{int(rps)}" if rps is not None else "")
-        print(f"Found {len(successful_requests)} successful requests in {filename} (r{replicas}, {label})")
+        print(f"Found {len(successful_requests)} successful requests in {filename} ({label})")
         
         # Parse each individual request
         for request in successful_requests:
             request_data = {
                 'filename': filename,
                 'filepath': filepath,
-                'replicas': replicas,
                 'concurrency': concurrency,
                 'rps': rps,
                 'dataset_prompt_tokens': dataset_settings.get('prompt_tokens', 0),
