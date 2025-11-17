@@ -7,14 +7,11 @@ from glob import glob
 from typing import Dict, Any, List, Optional, Callable, Tuple
 
 
-
-
-
 def extract_dataset_settings(request_loader: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """Extract dataset settings from request_loader data.
+    """Extract dataset settings from request_loader or config.requests data.
     
     Args:
-        request_loader: Request loader configuration from JSON
+        request_loader: Request loader configuration from JSON (v0.3.0) or config.requests (v0.4.0)
         
     Returns:
         Dictionary containing dataset settings
@@ -32,6 +29,31 @@ def extract_dataset_settings(request_loader: Optional[Dict[str, Any]]) -> Dict[s
     if not data_str:
         return {}
     
+    # Try v0.4.0 format first: "['prompt_tokens=512,output_tokens=256']"
+    if isinstance(data_str, str) and data_str.startswith("['") and data_str.endswith("']"):
+        try:
+            # Parse the string representation of a list
+            import ast
+            data_list = ast.literal_eval(data_str)
+            if isinstance(data_list, list) and data_list:
+                # Parse the first item which is in format "prompt_tokens=512,output_tokens=256"
+                settings = {}
+                for item in data_list[0].split(','):
+                    if '=' in item:
+                        key, value = item.split('=', 1)
+                        settings[key] = int(value) if value.isdigit() else value
+                
+                return {
+                    'prompt_tokens': settings.get('prompt_tokens', 0),
+                    'prompt_tokens_stdev': 0,
+                    'output_tokens': settings.get('output_tokens', 0),
+                    'output_tokens_stdev': 0,
+                    'processor': request_loader.get('processor', '')
+                }
+        except (ValueError, SyntaxError):
+            pass  # Fall through to v0.3.0 format
+    
+    # Try v0.3.0 format: JSON string
     try:
         # Parse the JSON-like string in the data field
         data_dict = json.loads(data_str)
@@ -72,17 +94,33 @@ def parse_benchmark_metrics(filepath: str, extra_metadata: Optional[Dict[str, An
     
     rows = []
     for benchmark in benchmarks:
-        # Extract concurrency/RPS from args
+        # Extract concurrency/RPS from config (v0.4.0+) or args (v0.3.0)
+        config = benchmark.get('config', {})
         args = benchmark.get('args', {})
-        strategy = args.get('strategy', {})
-        profile = args.get('profile', {})
+        
+        # Try v0.4.0 structure first (config.strategy)
+        strategy = config.get('strategy', {})
+        if not strategy:
+            # Fallback to v0.3.0 structure (args.strategy)
+            strategy = args.get('strategy', {})
+        
+        profile = config.get('profile', {})
+        if not profile:
+            # Fallback to v0.3.0 structure (args.profile)
+            profile = args.get('profile', {})
 
         # Concurrency mode
-        concurrency = strategy.get('streams', None)
+        # v0.4.0: config.strategy.max_concurrency
+        # v0.3.0: args.strategy.streams
+        concurrency = strategy.get('max_concurrency', None)
+        if concurrency is None:
+            concurrency = strategy.get('streams', None)
 
         # RPS mode (constant-rate profile)
         rps = None
-        strategy_type = profile.get('strategy_type')
+        # v0.4.0: config.strategy.type_ == 'constant' or similar
+        # v0.3.0: args.profile.strategy_type == 'constant'
+        strategy_type = strategy.get('type_', profile.get('strategy_type'))
         if strategy_type == 'constant':
             # Prefer strategy.rate, fallback to profile.rate[0]
             rate = strategy.get('rate')
@@ -98,8 +136,11 @@ def parse_benchmark_metrics(filepath: str, extra_metadata: Optional[Dict[str, An
             continue
         
         # Extract dataset settings
+        # v0.4.0: config.requests
+        # v0.3.0: request_loader
+        request_config = config.get('requests', {})
         request_loader = benchmark.get('request_loader', {})
-        dataset_settings = extract_dataset_settings(request_loader)
+        dataset_settings = extract_dataset_settings(request_config if request_config else request_loader)
         
         # Extract metrics
         metrics = benchmark.get('metrics', {})
@@ -192,17 +233,40 @@ def parse_individual_requests(filepath: str, extra_metadata: Optional[Dict[str, 
     
     all_requests = []
     for benchmark in benchmarks:
-        # Extract test start time from run_stats
+        # Extract test start time from run_stats (v0.3.0) or start_time (v0.4.0)
         run_stats = benchmark.get('run_stats', {})
         test_start_time = run_stats.get('start_time', None)
+        if test_start_time is None:
+            test_start_time = benchmark.get('start_time', None)
         
-        # Extract concurrency from args (individual requests path keeps streams)
+        # Extract concurrency/RPS from config (v0.4.0+) or args (v0.3.0)
+        config = benchmark.get('config', {})
         args = benchmark.get('args', {})
-        strategy = args.get('strategy', {})
-        concurrency = strategy.get('streams', None)
-        profile = args.get('profile', {})
+        
+        # Try v0.4.0 structure first (config.strategy)
+        strategy = config.get('strategy', {})
+        if not strategy:
+            # Fallback to v0.3.0 structure (args.strategy)
+            strategy = args.get('strategy', {})
+        
+        profile = config.get('profile', {})
+        if not profile:
+            # Fallback to v0.3.0 structure (args.profile)
+            profile = args.get('profile', {})
+        
+        # Concurrency mode
+        # v0.4.0: config.strategy.max_concurrency
+        # v0.3.0: args.strategy.streams
+        concurrency = strategy.get('max_concurrency', None)
+        if concurrency is None:
+            concurrency = strategy.get('streams', None)
+        
+        # RPS mode (constant-rate profile)
         rps = None
-        if profile.get('strategy_type') == 'constant':
+        # v0.4.0: config.strategy.type_ == 'constant' or similar
+        # v0.3.0: args.profile.strategy_type == 'constant'
+        strategy_type = strategy.get('type_', profile.get('strategy_type'))
+        if strategy_type == 'constant':
             rate = strategy.get('rate')
             if rate is None:
                 rate_list = profile.get('rate') or []
@@ -215,8 +279,11 @@ def parse_individual_requests(filepath: str, extra_metadata: Optional[Dict[str, 
             continue
         
         # Extract dataset settings
+        # v0.4.0: config.requests
+        # v0.3.0: request_loader
+        request_config = config.get('requests', {})
         request_loader = benchmark.get('request_loader', {})
-        dataset_settings = extract_dataset_settings(request_loader)
+        dataset_settings = extract_dataset_settings(request_config if request_config else request_loader)
         
         # Get successful requests
         requests = benchmark.get('requests', {})
@@ -231,6 +298,12 @@ def parse_individual_requests(filepath: str, extra_metadata: Optional[Dict[str, 
         
         # Parse each individual request
         for request in successful_requests:
+            # Handle both v0.3.0 and v0.4.0 timestamp field names
+            # v0.4.0: request_start_time, request_end_time
+            # v0.3.0: start_time, end_time
+            start_time = request.get('request_start_time', request.get('start_time', 0))
+            end_time = request.get('request_end_time', request.get('end_time', 0))
+            
             request_data = {
                 'filename': filename,
                 'filepath': filepath,
@@ -247,15 +320,15 @@ def parse_individual_requests(filepath: str, extra_metadata: Optional[Dict[str, 
                 'tokens_per_second': request.get('tokens_per_second', 0),
                 'output_tokens_per_second': request.get('output_tokens_per_second', 0),
                 'first_token_time': request.get('first_token_time', 0),
-                'start_time': request.get('start_time', 0),
-                'end_time': request.get('end_time', 0),
+                'start_time': start_time,
+                'end_time': end_time,
             }
             
             # Calculate relative times from test start
             if test_start_time is not None:
                 first_token_time = request.get('first_token_time', 0)
-                request_start_time = request.get('start_time', 0)
-                request_end_time = request.get('end_time', 0)
+                request_start_time = start_time
+                request_end_time = end_time
                 
                 if first_token_time > 0:
                     request_data['first_token_time_relative'] = first_token_time - test_start_time
