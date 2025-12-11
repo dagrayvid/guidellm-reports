@@ -3,8 +3,89 @@
 import plotly.express as px
 import pandas as pd
 from typing import Dict, Any, List, Optional, Tuple
+# MC
+from dynaconf import Dynaconf
+import os
+# End MC
 
+# MC
+def create_throughput_vs_resp_time_chart(df: pd.DataFrame, color_col: str, axis_mode: str, latency_stats_type: str) -> str:
+    """Create throughput vs concurrency/RPS chart.
+    
+    Args:
+        df: DataFrame containing benchmark metrics
+        color_col: Column to use for coloring/grouping
+        axis_mode: Either 'concurrency' or 'rps'
+        latency_stats_type: 'mean', 'median', 'p95', 'p99'
+        
+    Returns:
+        HTML string of the chart
+    """
+    if df.empty:
+        return "<p>No data available for throughput</p>"
+    
+    x_field = 'mean_output_tokens_per_second'
+    x_label = 'Output Tokens per Second' 
+    
+    # Group by x_field and color_col, take mean if multiple values
+    grouped_data = []
+    for group in sorted(df[color_col].unique()):
+        group_data = df[df[color_col] == group]
+        for x_val in sorted(group_data[x_field].dropna().unique()):
+            x_data = group_data[group_data[x_field] == x_val]
+            req_latency_field = f'request_latency_{latency_stats_type}'
+            req_latency_value = x_data[req_latency_field].mean()
+            grouped_data.append({
+                'x_value': x_val,
+                'req_latency': req_latency_value,
+                'group': group,
+                'concurrency': x_data['concurrency'].iloc[0]
+            })
+    
+    if not grouped_data:
+        return "<p>No valid throughput data available</p>"
+    
+    plot_df = pd.DataFrame(grouped_data)
 
+    plot_df.sort_values(by='concurrency', inplace=True)
+
+    fig = px.scatter(
+        plot_df,
+        x='x_value',
+        y='req_latency',
+        color='group',
+        title=f'Throughput vs Request Response Time',
+        labels={
+            'x_value': x_label,
+            'req_latency': 'Request latency (sec)',
+            'group': color_col.replace('_', ' ').title()
+        },
+        hover_data=['concurrency']
+    )
+ 
+    fig.update_traces(mode='markers+lines')
+
+    fig.update_layout(
+        template='plotly_white',
+        height=max(500, len(fig.data[0].x) * 20),  # dynamic height
+        font_family='monospace',
+        margin=dict(l=80, r=40, t=80, b=120, pad=10),
+        showlegend=True,
+    )
+
+    # Critical for scatter plots with categorical/text x-axis:
+    fig.update_xaxes(
+        tickangle=-45,
+        automargin=True,
+        tickfont=dict(size=10),
+        categoryorder='total ascending'  # or 'category ascending', 'trace', etc.
+    )
+
+    fig.update_yaxes(automargin=True)
+    div_id = f"tpvsrt-{latency_stats_type}"
+    #div_id="tpvsrt-chart"
+    return fig.to_html(include_plotlyjs='cdn', div_id=div_id)
+# End MC
 def create_throughput_chart(df: pd.DataFrame, color_col: str, axis_mode: str) -> str:
     """Create throughput vs concurrency/RPS chart.
     
@@ -16,6 +97,13 @@ def create_throughput_chart(df: pd.DataFrame, color_col: str, axis_mode: str) ->
     Returns:
         HTML string of the chart
     """
+    # MC
+    settings=Dynaconf(settings_files=[os.getenv('DYNACONF_SETTINGS_MODULE')], environments=False)
+    try:
+        x_axis_categorical = settings.options.x_axis_categorical
+    except Exception:
+        x_axis_categorical = False
+    # End MC
     if df.empty:
         return "<p>No data available for throughput</p>"
     
@@ -40,27 +128,63 @@ def create_throughput_chart(df: pd.DataFrame, color_col: str, axis_mode: str) ->
         return "<p>No valid throughput data available</p>"
     
     plot_df = pd.DataFrame(grouped_data)
-    
-    fig = px.bar(
-        plot_df,
-        x='x_value',
-        y='throughput',
-        color='group',
-        title=f'Throughput vs {x_label}',
-        labels={
-            'x_value': x_label,
-            'throughput': 'Output Tokens/sec',
-            'group': color_col.replace('_', ' ').title()
-        },
-        hover_data=['samples']
-    )
-    
-    fig.update_layout(
-        template='plotly_white',
-        height=500,
-        font_family='monospace',
-        barmode='group'
-    )
+    plot_df.sort_values(by='x_value', inplace=True)  # sort by actual numeric value
+    ## Original
+    if not x_axis_categorical:
+        fig = px.bar(
+            plot_df,
+            x='x_value',
+            y='throughput',
+            color='group',
+            title=f'Throughput vs {x_label}',
+            labels={
+                'x_value': x_label,
+                'throughput': 'Output Tokens/sec',
+                'group': color_col.replace('_', ' ').title()
+            },
+            hover_data=['samples']
+        )
+        
+        fig.update_layout(
+            template='plotly_white',
+            height=500,
+            font_family='monospace',
+            barmode='group'
+        )    
+    else:
+        fig = px.bar(
+            plot_df,
+            x='x_value',               # ← keep as numeric/int/float
+            y='throughput',
+            color='group',
+            title=f'Throughput vs {x_label}',
+            labels={
+                'x_value': x_label,
+                'throughput': 'Output Tokens/sec',
+                'group': color_col.replace('_', ' ').title()
+            },
+            hover_data=['samples'],     # This is the magic line:
+            category_orders={'x_value': sorted(plot_df['x_value'].unique())}
+            
+        )
+        fig.update_xaxes(type='category')  # Force treat x-axis as categorical/text
+        fig.update_layout(
+            template='plotly_white',
+            height=500,
+            font_family='monospace',
+            barmode='group',
+            xaxis_title=x_label,
+            yaxis_title='Output Tokens/sec'
+        )
+
+        # Force the x-axis to show the values in the correct numeric order
+        fig.update_xaxes(
+            tickmode='array',
+            tickvals=plot_df['x_value'],                    # positions (numeric)
+            ticktext=plot_df['x_value'].astype(str)         # what is displayed
+        )
+    # End MC
+
     
     return fig.to_html(include_plotlyjs='cdn', div_id="throughput-chart")
 
@@ -80,6 +204,13 @@ def create_latency_chart(df: pd.DataFrame, metric_col: str, color_col: str, axis
     Returns:
         HTML string of the chart
     """
+    # MC
+    settings=Dynaconf(settings_files=[os.getenv('DYNACONF_SETTINGS_MODULE')], environments=False)
+    try:
+        y_axis_log_scale = settings.options.y_axis_log_scale
+    except Exception:
+        y_axis_log_scale = False
+    # End MC
     if df.empty or metric_col not in df.columns:
         return f"<p>No data available for {title}</p>"
     
@@ -118,14 +249,19 @@ def create_latency_chart(df: pd.DataFrame, metric_col: str, color_col: str, axis
         },
         hover_data=['samples']
     )
-    
+    # 
+    # MC
+    # Set y-axis to log scale if configured
+    if y_axis_log_scale:
+        fig.update_yaxes(type='log')
+    # End MC
     fig.update_layout(
         template='plotly_white',
         height=500,
         font_family='monospace',
         barmode='group'
     )
-    
+
     chart_id = metric_col.replace('_', '-') + '-chart'
     return fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
 

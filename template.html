@@ -146,6 +146,18 @@
     </style>
 </head>
 <body>
+    <!-- Convert metadata yaml block to dictionary -->
+    {% set yaml_block =
+        metadata  | split('\n==================================================\n') | trim
+    %}
+    {% set meta = yaml_block | fromyaml %}
+    <!-- Determine if xref charts should be shown -->
+    {% if meta.options.show_xref_charts is defined and meta.options.show_xref_charts == True %}
+        {% set show_xref_charts = True %}
+    {% else %}
+        {% set show_xref_charts = False %}
+    {% endif %}    
+    <!-- -->  
     {% if title or subtitle %}
     <div class="header">
         {% if title %}
@@ -160,6 +172,10 @@
     <div class="tab-container">
         <div class="tab-header">
             <button class="tab-button active" onclick="openTab(event, 'throughput')">Throughput</button>
+            <!-- Conditionally show the xref charts-->
+                {% if show_xref_charts %}
+                <button class="tab-button" onclick="openTab(event, 'tpvsrt')">Throughput vs Resp Time</button>
+                {% endif %}          
             <button class="tab-button" onclick="openTab(event, 'ttft')">TTFT</button>
             <button class="tab-button" onclick="openTab(event, 'itl')">ITL</button>
             <button class="tab-button" onclick="openTab(event, 'request-latency')">Request Latency</button>
@@ -178,7 +194,21 @@
             </div>
             {{ throughput_chart }}
         </div>
-        
+        <!-- Throughput vs Resp Time Tab -->
+        <div id="tpvsrt" class="tab-content" hidden>
+            <div class="metric-description">
+                <h3>Throughput vs. Request Response Time (Output Tokens per Second vs Seconds)</h3>
+                <p></p>
+            </div>
+            <div class="subtab-container">
+                <div class="subtab-header">
+                    <button class="subtab-button active" onclick="openSubtab(event, 'tpvsrt-mean', 'tpvsrt')">Mean</button>
+                    <button class="subtab-button" onclick="openSubtab(event, 'tpvsrt-p95', 'tpvsrt')">P95</button>
+                </div>
+                <div id="tpvsrt-mean" class="subtab-content active" style="height: 500px;">{{ throughput_vs_resp_time_chart }}</div>
+                <div id="tpvsrt-p95" class="subtab-content" style="height: 500px;">{{ throughput_vs_resp_time_chart_p95 }}</div>
+            </div>            
+        </div>        
         <!-- TTFT Tab with Subtabs -->
         <div id="ttft" class="tab-content">
             <div class="metric-description">
@@ -355,7 +385,7 @@
             });
         });
     </script>
-    
+
     {% if metadata %}
     <div class="metadata">
         <h4>Generation Metadata</h4>
