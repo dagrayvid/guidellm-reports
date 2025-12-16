@@ -169,7 +169,7 @@
     </div>
     {% endif %}
     
-    <div class="tab-container">
+    <div class="tab-container">     
         <div class="tab-header">
             <button class="tab-button active" onclick="openTab(event, 'throughput')">Throughput</button>
             <!-- Conditionally show the xref charts-->
@@ -193,7 +193,37 @@
                 <p>Higher is better. Measures how many tokens the system can generate per second.</p>
             </div>
             {{ throughput_chart }}
+            
+            <div id="chart-spinner" style="
+                position: relative;
+                top: -100px;  
+                width: 100%;
+                height: 100px;
+                background: rgba(255, 255, 255, 0.8);  
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10;">  <!-- Higher than Plotly's default -->
+                
+                <!-- Simple CSS spinner (no external libs needed) -->
+                <div style="
+                    border: 8px solid #f3f3f3;
+                    border-top: 8px solid #3498db;
+                    border-radius: 50%;
+                    width: 60px;
+                    height: 60px;
+                    animation: spin 1s linear infinite;">
+                </div>
+            </div>
         </div>
+
+        <!-- Add the spinner animation -->
+        <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        </style>         
         <!-- Throughput vs Resp Time Tab -->
         <div id="tpvsrt" class="tab-content">
             <div class="metric-description">
@@ -387,6 +417,15 @@
     </script>
 
     {% if metadata %}
+    <script>
+        // Hide spinner after content is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            var spinner = document.getElementById('chart-spinner');
+            if (spinner) {
+                spinner.style.display = 'none';
+            }
+        });
+    </script>
     <div class="metadata">
         <h4>Generation Metadata</h4>
         <pre>{{ metadata }}</pre>
