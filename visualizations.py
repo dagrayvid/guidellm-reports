@@ -210,6 +210,10 @@ def create_latency_chart(df: pd.DataFrame, metric_col: str, color_col: str, axis
         y_axis_log_scale = settings.options.y_axis_log_scale
     except Exception:
         y_axis_log_scale = False
+    try:
+        x_axis_categorical = settings.options.x_axis_categorical
+    except Exception:
+        x_axis_categorical = False        
     # End MC
     if df.empty or metric_col not in df.columns:
         return f"<p>No data available for {title}</p>"
@@ -235,33 +239,65 @@ def create_latency_chart(df: pd.DataFrame, metric_col: str, color_col: str, axis
         return f"<p>No valid data available for {title}</p>"
     
     plot_df = pd.DataFrame(grouped_data)
-    
-    fig = px.bar(
-        plot_df,
-        x='x_value',
-        y='metric_value',
-        color='group',
-        title=f'{title} vs {x_label}',
-        labels={
-            'x_value': x_label,
-            'metric_value': y_label,
-            'group': color_col.replace('_', ' ').title()
-        },
-        hover_data=['samples']
-    )
+    if not x_axis_categorical:
+        fig = px.bar(
+            plot_df,
+            x='x_value',
+            y='metric_value',
+            color='group',
+            title=f'{title} vs {x_label}',
+            labels={
+                'x_value': x_label,
+                'metric_value': y_label,
+                'group': color_col.replace('_', ' ').title()
+            },
+            hover_data=['samples']
+        )
+
+        fig.update_layout(
+            template='plotly_white',
+            height=500,
+            font_family='monospace',
+            barmode='group'
+        )
+    else:
+        fig = px.bar(
+            plot_df,
+            x='x_value',               # ← keep as numeric/int/float
+            y='metric_value',
+            color='group',
+            title=f'{title} vs {x_label}',
+            labels={
+                'x_value': x_label,
+                'metric_value': y_label,
+                'group': color_col.replace('_', ' ').title()
+            },
+            hover_data=['samples'],     # This is the magic line:
+            category_orders={'x_value': sorted(plot_df['x_value'].unique())}
+            
+        )
+        fig.update_xaxes(type='category')  # Force treat x-axis as categorical/text
+        fig.update_layout(
+            template='plotly_white',
+            height=500,
+            font_family='monospace',
+            barmode='group',
+            xaxis_title=x_label,
+            yaxis_title=y_label
+        )
+
+        # Force the x-axis to show the values in the correct numeric order
+        fig.update_xaxes(
+            tickmode='array',
+            tickvals=plot_df['x_value'],                    # positions (numeric)
+            ticktext=plot_df['x_value'].astype(str)         # what is displayed
+        )
     # 
     # MC
     # Set y-axis to log scale if configured
     if y_axis_log_scale:
         fig.update_yaxes(type='log')
     # End MC
-    fig.update_layout(
-        template='plotly_white',
-        height=500,
-        font_family='monospace',
-        barmode='group'
-    )
-
     chart_id = metric_col.replace('_', '-') + '-chart'
     return fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
 
