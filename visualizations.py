@@ -84,7 +84,8 @@ def create_throughput_vs_resp_time_chart(df: pd.DataFrame, color_col: str, axis_
     fig.update_yaxes(automargin=True)
     div_id = f"tpvsrt-{latency_stats_type}"
     #div_id="tpvsrt-chart"
-    return fig.to_html(include_plotlyjs='cdn', div_id=div_id)
+    #return fig.to_html(include_plotlyjs='cdn', div_id=div_id)
+    return fig.to_html(include_plotlyjs=False, div_id=div_id)
 # End MC
 def create_throughput_chart(df: pd.DataFrame, color_col: str, axis_mode: str) -> str:
     """Create throughput vs concurrency/RPS chart.
@@ -131,7 +132,8 @@ def create_throughput_chart(df: pd.DataFrame, color_col: str, axis_mode: str) ->
     plot_df.sort_values(by='x_value', inplace=True)  # sort by actual numeric value
     ## Original
     if not x_axis_categorical:
-        fig = px.bar(
+#        fig = px.bar(
+        fig = px.line(
             plot_df,
             x='x_value',
             y='throughput',
@@ -142,7 +144,8 @@ def create_throughput_chart(df: pd.DataFrame, color_col: str, axis_mode: str) ->
                 'throughput': 'Output Tokens/sec',
                 'group': color_col.replace('_', ' ').title()
             },
-            hover_data=['samples']
+            hover_data=['samples'],
+            markers=True
         )
         
         fig.update_layout(
@@ -152,7 +155,8 @@ def create_throughput_chart(df: pd.DataFrame, color_col: str, axis_mode: str) ->
             barmode='group'
         )    
     else:
-        fig = px.bar(
+#        fig = px.bar(
+        fig = px.line(
             plot_df,
             x='x_value',               # ← keep as numeric/int/float
             y='throughput',
@@ -163,6 +167,7 @@ def create_throughput_chart(df: pd.DataFrame, color_col: str, axis_mode: str) ->
                 'throughput': 'Output Tokens/sec',
                 'group': color_col.replace('_', ' ').title()
             },
+            markers=True,
             hover_data=['samples'],     # This is the magic line:
             category_orders={'x_value': sorted(plot_df['x_value'].unique())}
             
@@ -186,7 +191,8 @@ def create_throughput_chart(df: pd.DataFrame, color_col: str, axis_mode: str) ->
     # End MC
 
     
-    return fig.to_html(include_plotlyjs='cdn', div_id="throughput-chart")
+    #return fig.to_html(include_plotlyjs='cdn', div_id="throughput-chart")
+    return fig.to_html(include_plotlyjs=False, div_id=f"throughput-{axis_mode}-chart")  
 
 
 def create_latency_chart(df: pd.DataFrame, metric_col: str, color_col: str, axis_mode: str, 
@@ -261,7 +267,7 @@ def create_latency_chart(df: pd.DataFrame, metric_col: str, color_col: str, axis
             barmode='group'
         )
     else:
-        fig = px.bar(
+        fig = px.line(
             plot_df,
             x='x_value',               # ← keep as numeric/int/float
             y='metric_value',
@@ -272,6 +278,7 @@ def create_latency_chart(df: pd.DataFrame, metric_col: str, color_col: str, axis
                 'metric_value': y_label,
                 'group': color_col.replace('_', ' ').title()
             },
+            markers=True,
             hover_data=['samples'],     # This is the magic line:
             category_orders={'x_value': sorted(plot_df['x_value'].unique())}
             
@@ -299,8 +306,8 @@ def create_latency_chart(df: pd.DataFrame, metric_col: str, color_col: str, axis
         fig.update_yaxes(type='log')
     # End MC
     chart_id = metric_col.replace('_', '-') + '-chart'
-    return fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
-
+    #return fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
+    return fig.to_html(include_plotlyjs=False, div_id=chart_id)
 
 def create_histogram_deep_dive(df: pd.DataFrame, metric_col: str, color_col: str, 
                                axis_mode: str, title_prefix: str) -> str:
@@ -391,7 +398,8 @@ def create_histogram_deep_dive(df: pd.DataFrame, metric_col: str, color_col: str
         )
         
         chart_id = f"{title_prefix.lower()}-{str(level).replace('.', '_')}-{str(group).replace(' ', '-')}"
-        chart_html = fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
+        #chart_html = fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
+        chart_html = fig.to_html(include_plotlyjs=False, div_id=chart_id)
         html_parts.append(f'<div style="margin-bottom: 30px;">{chart_html}</div>')
     
     return '\n'.join(html_parts)
@@ -482,7 +490,8 @@ def create_token_length_histograms(df: pd.DataFrame, token_col: str, color_col: 
         )
         
         chart_id = f"{title_prefix.lower().replace(' ', '-')}-{str(level).replace('.', '_')}-{str(group).replace(' ', '-')}"
-        chart_html = fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
+        #chart_html = fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
+        chart_html = fig.to_html(include_plotlyjs=False, div_id=chart_id)
         html_parts.append(f'<div style="margin-bottom: 30px;">{chart_html}</div>')
     
     return '\n'.join(html_parts)
@@ -611,7 +620,8 @@ def create_request_rate_chart(df: pd.DataFrame, time_col: str, title: str,
         )
         
         chart_id = f"{title.lower().replace(' ', '-').replace('/', '-')}-{str(level).replace('.', '_')}"
-        chart_html = fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
+        #chart_html = fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
+        chart_html = fig.to_html(include_plotlyjs=False, div_id=chart_id)
         html_parts.append(f'<div style="margin-bottom: 30px;">{chart_html}</div>')
     
     if not html_parts:
@@ -681,7 +691,8 @@ def create_ttft_timeline_chart(df: pd.DataFrame, color_col: str, level_field: st
         )
         
         chart_id = f"ttft-timeline-{str(level).replace('.', '_')}"
-        chart_html = fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
+        #chart_html = fig.to_html(include_plotlyjs='cdn', div_id=chart_id)
+        chart_html = fig.to_html(include_plotlyjs=False, div_id=chart_id)   
         html_parts.append(f'<div style="margin-bottom: 30px;">{chart_html}</div>')
     
     if not html_parts:
