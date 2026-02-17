@@ -94,24 +94,29 @@ def parse_benchmark_metrics(filepath: str, extra_metadata: Optional[Dict[str, An
     
     rows = []
     for benchmark in benchmarks:
-        # Extract concurrency/RPS from config (v0.4.0+) or args (v0.3.0)
+        # Extract concurrency/RPS from various possible locations
         config = benchmark.get('config', {})
         args = benchmark.get('args', {})
+        scheduler = benchmark.get('scheduler', {})
         
-        # Try v0.4.0 structure first (config.strategy)
+        # Try different structure locations for strategy:
+        # - v0.4.0+: benchmark.config.strategy
+        # - v0.3.0: benchmark.args.strategy
+        # - scheduler variant: benchmark.scheduler.strategy
         strategy = config.get('strategy', {})
         if not strategy:
-            # Fallback to v0.3.0 structure (args.strategy)
             strategy = args.get('strategy', {})
+        if not strategy:
+            strategy = scheduler.get('strategy', {})
         
         profile = config.get('profile', {})
         if not profile:
             # Fallback to v0.3.0 structure (args.profile)
             profile = args.get('profile', {})
 
-        # Concurrency mode
-        # v0.4.0: config.strategy.max_concurrency
-        # v0.3.0: args.strategy.streams
+        # Concurrency mode - check multiple field names:
+        # - v0.4.0: strategy.max_concurrency
+        # - v0.3.0 & scheduler variant: strategy.streams
         concurrency = strategy.get('max_concurrency', None)
         if concurrency is None:
             concurrency = strategy.get('streams', None)
@@ -239,15 +244,20 @@ def parse_individual_requests(filepath: str, extra_metadata: Optional[Dict[str, 
         if test_start_time is None:
             test_start_time = benchmark.get('start_time', None)
         
-        # Extract concurrency/RPS from config (v0.4.0+) or args (v0.3.0)
+        # Extract concurrency/RPS from various possible locations
         config = benchmark.get('config', {})
         args = benchmark.get('args', {})
+        scheduler = benchmark.get('scheduler', {})
         
-        # Try v0.4.0 structure first (config.strategy)
+        # Try different structure locations for strategy
+        # v0.4.0: config.strategy
+        # v0.3.0: args.strategy
+        # scheduler variant: scheduler.strategy
         strategy = config.get('strategy', {})
         if not strategy:
-            # Fallback to v0.3.0 structure (args.strategy)
             strategy = args.get('strategy', {})
+        if not strategy:
+            strategy = scheduler.get('strategy', {})
         
         profile = config.get('profile', {})
         if not profile:
@@ -257,6 +267,7 @@ def parse_individual_requests(filepath: str, extra_metadata: Optional[Dict[str, 
         # Concurrency mode
         # v0.4.0: config.strategy.max_concurrency
         # v0.3.0: args.strategy.streams
+        # scheduler variant: scheduler.strategy.streams
         concurrency = strategy.get('max_concurrency', None)
         if concurrency is None:
             concurrency = strategy.get('streams', None)
