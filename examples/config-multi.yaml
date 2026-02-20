@@ -1,0 +1,22 @@
+data:
+  - extra_metadata:
+      platform: RHOAI-128
+      GPU: H200
+      GPU_count: 1
+      tokens_per_request: 128/128
+    files:
+      - "./granite-128.json"
+  - extra_metadata:
+      platform: RHOAI-512
+      GPU: H200
+      GPU_count: 1
+      tokens_per_request: 256/256
+    files:
+      - "./granite-512.json"      
+options:
+  color: platform
+  axis_mode: concurrency  # or 'rps'
+  concurrency_levels: [1, 8, 16, 32, 64, 128, 256, 512, 1024]
+  x_axis_categorical: true
+  y_axis_log_scale: true
+  show_xref_charts: true

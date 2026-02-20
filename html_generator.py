@@ -11,7 +11,9 @@ try:
     from . import visualizations
 except ImportError:
     import visualizations
-
+# MC
+from dynaconf import Dynaconf
+# End MC
 
 def generate_metadata_text(summary_df: pd.DataFrame, requests_df: pd.DataFrame, 
                           config_file: Optional[str], color_col: str, axis_mode: str,
@@ -28,6 +30,7 @@ def generate_metadata_text(summary_df: pd.DataFrame, requests_df: pd.DataFrame,
     Returns:
         Formatted metadata string
     """
+
     generation_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     metadata_lines = [f"Generated: {generation_time}"]
@@ -78,7 +81,14 @@ def generate_all_charts(summary_df: pd.DataFrame, requests_df: pd.DataFrame,
         Dictionary mapping chart names to HTML strings
     """
     charts = {}
-    
+    # MC
+    settings=Dynaconf(settings_files=[os.getenv('DYNACONF_SETTINGS_MODULE')], environments=False)
+    try:
+        show_xref_charts = settings.options.show_xref_charts
+    except Exception:
+        show_xref_charts = False
+    #print(f"Chart generation settings: {settings.data}")
+    # End MC
     # Throughput chart
     if not summary_df.empty:
         charts['throughput_chart'] = visualizations.create_throughput_chart(
@@ -86,7 +96,18 @@ def generate_all_charts(summary_df: pd.DataFrame, requests_df: pd.DataFrame,
         )
     else:
         charts['throughput_chart'] = "<p>No summary data available for throughput analysis</p>"
-    
+
+    # MC Throughput vs response time charts
+    if not summary_df.empty and show_xref_charts:
+        charts['throughput_vs_resp_time_chart'] = visualizations.create_throughput_vs_resp_time_chart(
+            summary_df, color_col, axis_mode, 'mean'
+        )
+        charts['throughput_vs_resp_time_chart_p95'] = visualizations.create_throughput_vs_resp_time_chart(
+            summary_df, color_col, axis_mode, 'p95'
+        )
+    else:
+        charts['throughput_vs_resp_time_chart'] = "<p>No summary data available for throughput analysis</p>" 
+        charts['throughput_vs_resp_time_chart_p95'] = "<p>No summary data available for throughput analysis</p>"             
     # TTFT charts (all subtabs)
     ttft_metrics = [
         ('ttft_mean', 'TTFT Mean', 'ms'),
@@ -123,10 +144,10 @@ def generate_all_charts(summary_df: pd.DataFrame, requests_df: pd.DataFrame,
     
     # Request Latency charts (all subtabs)
     request_latency_metrics = [
-        ('request_latency_mean', 'Request Latency Mean', 'ms'),
-        ('request_latency_median', 'Request Latency Median', 'ms'),
-        ('request_latency_p95', 'Request Latency P95', 'ms'),
-        ('request_latency_p99', 'Request Latency P99', 'ms')
+        ('request_latency_mean', 'Request Latency Mean', 'seconds'),
+        ('request_latency_median', 'Request Latency Median', 'seconds'),
+        ('request_latency_p95', 'Request Latency P95', 'seconds'),
+        ('request_latency_p99', 'Request Latency P99', 'seconds')
     ]
     
     for metric_col, title, y_label in request_latency_metrics:
@@ -197,8 +218,14 @@ def generate_html_report(summary_df: pd.DataFrame, requests_df: pd.DataFrame,
     # Load template
     template_dir = os.path.dirname(os.path.abspath(__file__))
     env = Environment(loader=FileSystemLoader(template_dir))
+    # MC Add fromyaml and split filters
+    # print(f"Adding fromyaml filter to Jinja2 environment")
+    env.filters['fromyaml'] = lambda s: yaml.safe_load(s)
+    #env.filters['trim'] = lambda s: s.trim()
+    env.filters['split'] = lambda s, sep: s.split(sep)[-1]
+    # print(f"Filters: {env.filters}")    
     template = env.get_template('template.html')
-    
+
     # Render HTML
     html_title = title or "Benchmark Analysis Report"
     html_content = template.render(

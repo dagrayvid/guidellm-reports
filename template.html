@@ -146,6 +146,19 @@
     </style>
 </head>
 <body>
+    <script src="https://cdn.plot.ly/plotly-3.3.0.min.js"></script>
+    <!-- Convert metadata yaml block to dictionary -->
+    {% set yaml_block =
+        metadata  | split('\n==================================================\n') | trim
+    %}
+    {% set meta = yaml_block | fromyaml %}
+    <!-- Determine if xref charts should be shown -->
+    {% if meta.options.show_xref_charts is defined and meta.options.show_xref_charts == True %}
+        {% set show_xref_charts = True %}
+    {% else %}
+        {% set show_xref_charts = False %}
+    {% endif %}    
+    <!-- -->  
     {% if title or subtitle %}
     <div class="header">
         {% if title %}
@@ -157,9 +170,13 @@
     </div>
     {% endif %}
     
-    <div class="tab-container">
+    <div class="tab-container">     
         <div class="tab-header">
             <button class="tab-button active" onclick="openTab(event, 'throughput')">Throughput</button>
+            <!-- Conditionally show the xref charts-->
+                {% if show_xref_charts %}
+                <button class="tab-button" onclick="openTab(event, 'tpvsrt')">Throughput vs Resp Time</button>
+                {% endif %}          
             <button class="tab-button" onclick="openTab(event, 'ttft')">TTFT</button>
             <button class="tab-button" onclick="openTab(event, 'itl')">ITL</button>
             <button class="tab-button" onclick="openTab(event, 'request-latency')">Request Latency</button>
@@ -177,8 +194,52 @@
                 <p>Higher is better. Measures how many tokens the system can generate per second.</p>
             </div>
             {{ throughput_chart }}
+            
+            <div id="chart-spinner" style="
+                position: relative;
+                top: -100px;  
+                width: 100%;
+                height: 100px;
+                background: rgba(255, 255, 255, 0.8);  
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10;">  <!-- Higher than Plotly's default -->
+                
+                <!-- Simple CSS spinner (no external libs needed) -->
+                <div style="
+                    border: 8px solid #f3f3f3;
+                    border-top: 8px solid #3498db;
+                    border-radius: 50%;
+                    width: 60px;
+                    height: 60px;
+                    animation: spin 1s linear infinite;">
+                </div>
+            </div>
         </div>
-        
+
+        <!-- Add the spinner animation -->
+        <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        </style>         
+        <!-- Throughput vs Resp Time Tab -->
+        <div id="tpvsrt" class="tab-content">
+            <div class="metric-description">
+                <h3>Throughput vs. Request Response Time (Output Tokens per Second vs Seconds)</h3>
+                <p></p>
+            </div>
+            <div class="subtab-container">
+                <div class="subtab-header">
+                    <button class="subtab-button active" onclick="openSubtab(event, 'tpvsrt-mean', 'tpvsrt')">Mean</button>
+                    <button class="subtab-button" onclick="openSubtab(event, 'tpvsrt-p95', 'tpvsrt')">P95</button>
+                </div>
+                <div id="tpvsrt-mean" class="subtab-content active" style="height: 500px;">{{ throughput_vs_resp_time_chart }}</div>
+                <div id="tpvsrt-p95" class="subtab-content" style="height: 500px;">{{ throughput_vs_resp_time_chart_p95 }}</div>
+            </div>            
+        </div>        
         <!-- TTFT Tab with Subtabs -->
         <div id="ttft" class="tab-content">
             <div class="metric-description">
@@ -355,8 +416,17 @@
             });
         });
     </script>
-    
+
     {% if metadata %}
+    <script>
+        // Hide spinner after content is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            var spinner = document.getElementById('chart-spinner');
+            if (spinner) {
+                spinner.style.display = 'none';
+            }
+        });
+    </script>
     <div class="metadata">
         <h4>Generation Metadata</h4>
         <pre>{{ metadata }}</pre>

@@ -11,6 +11,7 @@ import sys
 import os
 from typing import Optional
 
+
 try:
     from . import config
     from . import data_parsers
@@ -20,7 +21,6 @@ except ImportError:
     import config
     import data_parsers
     import html_generator
-
 
 def main() -> None:
     """Main entry point for GuideLLM Reports."""
@@ -73,7 +73,9 @@ Examples:
         # Load configuration
         print(f"Loading configuration from {args.config}...")
         cfg = config.load_config(args.config)
-        
+        # MC
+        os.environ['DYNACONF_SETTINGS_MODULE'] = args.config
+        # End MC
         # Get configuration options
         axis_mode = config.get_axis_mode(cfg)
         color_col = config.get_color_column(cfg)
